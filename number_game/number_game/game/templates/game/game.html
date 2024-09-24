@@ -1,0 +1,161 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Number Game</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            margin: 20px;
+        }
+
+        .grid {
+            display: grid;
+            grid-template-columns: repeat(7, 1fr);
+            width: 350px; /* Adjust based on your layout needs */
+            height: 350px; /* Adjust based on your layout needs */
+        }
+
+        .grid div {
+            border: 1px solid #ccc;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 24px;
+            height: 50px; /* Adjust cell height */
+            width: 50px; /* Adjust cell width */
+        }
+
+        /* Light blue for first and last rows and columns */
+        .grid div:nth-child(-n+7), /* First row */
+        .grid div:nth-child(7n), /* last column */
+        .grid div:nth-last-child(-n+7), /* last row n (7, 14, 21, ...) */
+        .grid div:nth-last-child(7n) { /* first column */
+            background-color: lightblue; /* Light blue for borders */
+        }
+
+        /* Yellow for corners */
+        .grid div:nth-child(1),
+        .grid div:nth-child(7),
+        .grid div:nth-last-child(1),
+        .grid div:nth-last-child(7) {
+            background-color: yellow; /* Yellow for corners */
+        }
+
+        .inner-cell {
+            background-color: lightgrey; /* Grey for the inner 5x5 grid */
+        }
+
+        .number-button {
+            margin: 5px;
+            padding: 10px;
+            font-size: 18px;
+        }
+
+        .rollback-button {
+            margin-top: 20px;
+            padding: 10px;
+            font-size: 18px;
+        }
+    </style>
+</head>
+<body>
+    <h1>Number Game</h1>
+    <div class="grid">
+        {% for row in grid %}
+            {% for cell in row %}
+                <div class="grid-cell {% if cell is none %}inner-cell{% endif %}">
+                    {% if cell is not none %}
+                        {{ cell }}
+                    {% endif %}
+                </div>
+            {% endfor %}
+        {% endfor %}
+    </div>
+
+    <button class="rollback-button" onclick="rollback()">Rollback</button>
+
+    <script>
+let currentNumber = 2; // Start with number 2
+
+document.querySelectorAll('.grid-cell').forEach((cell, index) => {
+    cell.addEventListener('click', () => {
+        const row = Math.floor(index / 7);
+        const col = index % 7;
+
+        fetch('', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/x-www-form-urlencoded',
+                'X-CSRFToken': '{{ csrf_token }}', // Ensure CSRF token is sent
+            },
+            body: new URLSearchParams({
+                'action': 'place',
+                'row': row,
+                'col': col,
+            })
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.status === 'success') {
+                cell.textContent = currentNumber; // Update the cell with the current number
+                currentNumber++; // Increment for the next number
+
+                // Check if the game is finished
+                if (data.finished) {
+                    // Show the congratulatory message
+                    alert(data.message); // Show the message
+
+                    // Add logic to handle proceeding to Level 2 (optional)
+                    // For example, you can prompt the user here
+                    const proceed = confirm("Do you want to proceed to Level 2?");
+                    if (proceed) {
+                        // Logic to start Level 2 can go here
+                        // For now, you might want to reset the game
+                        location.reload(); // Reloads the game for a new level
+                    } else {
+                        // Optionally do something else if the user chooses not to proceed
+                    }
+                }
+            } else if (data.status === 'invalid') {
+                alert("Invalid placement! Cell already filled.");
+            } else if (data.status === 'deadend') {
+                alert("Dead-end! You can rollback.");
+            }
+        });
+    });
+});
+
+function rollback() {
+    fetch('', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/x-www-form-urlencoded',
+            'X-CSRFToken': '{{ csrf_token }}', // Ensure CSRF token is sent
+        },
+        body: new URLSearchParams({
+            'action': 'rollback',
+        })
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.status === 'rollback') {
+            // Update the grid UI after rollback
+            document.querySelectorAll('.grid-cell').forEach((cell, index) => {
+                const row = Math.floor(index / 7);
+                const col = index % 7;
+                cell.textContent = data.grid[row][col] !== null ? data.grid[row][col] : ''; // Clear or show number
+            });
+            currentNumber--; // Decrement for rollback
+        } else {
+            alert("No numbers to rollback!");
+        }
+    });
+}
+</script>
+</body>
+</html>
